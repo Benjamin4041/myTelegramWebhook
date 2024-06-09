@@ -42,17 +42,8 @@ const startClient = async (user) => {
     await client.start({
       phoneNumber: async () => user.phoneNumber,
       password: async () => user.password || "", // Handle if password is required
-      phoneCode: async () => {
-        return new Promise((resolve) => {
-          const checkOTP = setInterval(() => {
-            const code = getOtpCode(); // Use getter function to retrieve OTP
-            if (code) {
-              clearInterval(checkOTP);
-              resolve(code);
-            }
-          }, 1000); // Check every second for the OTP
-        });
-      },
+phoneCode: async () =>
+await input.text("Please enter the code you received: "),
       onError: (err) => console.error('Client start error:', err),
     });
 
@@ -82,8 +73,17 @@ const startClientRegister = async (user) => {
     await client.start({
       phoneNumber: async () => user.phoneNumber,
       password: async () => "",
-      phoneCode: async () =>
-        await input.text("Please enter the code you received: "),
+        phoneCode: async () => {
+          return new Promise((resolve) => {
+            const checkOTP = setInterval(() => {
+              const code = getOtpCode(); // Use getter function to retrieve OTP
+              if (code) {
+                clearInterval(checkOTP);
+                resolve(code);
+              }
+            }, 1000); // Check every second for the OTP
+          });
+        },
       onError: (err) => console.error('Client start error:', err),
     });
 
