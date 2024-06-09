@@ -1,15 +1,10 @@
-const { TelegramClient } = require("telegram");
+const { TelegramClient, Api, client } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const axios = require("axios");
 const User = require("../models/user");
+const input = require("input"); // npm i input
+const { NewMessage } = require("telegram/events");
 require("dotenv").config();
-const input = require("input");
-const express = require('express');
-
-
-const app = express()
-
-
 
 let otpCode = null; // Store OTP code in a module-level variable
 
@@ -21,9 +16,21 @@ const getOtpCode = () => {
   return otpCode;
 };
 
-
-
 const clients = {}; // Store clients by email
+
+async function handler(event) {
+  try {
+    if (event.message) {
+      const message = event.message.message;
+      const sender = await event.message.getSender();
+      const senderId = sender.id;
+      console.log(`New message from ${senderId}: ${message}`);
+      // forwardMessage(senderId, message);
+    }
+  } catch (err) {
+    console.error('Error handling event:', err);
+  }
+}
 
 const startClient = async (user) => {
   const stringSession = new StringSession(user.session || "");
@@ -34,27 +41,30 @@ const startClient = async (user) => {
   try {
     await client.start({
       phoneNumber: async () => user.phoneNumber,
-      password: async () => {
-        throw new Error("Password required, but not implemented.");
-      },
+      password: async () => user.password || "", // Handle if password is required
       phoneCode: async () => {
-        throw new Error("Code required, but not implemented.");
+        return new Promise((resolve) => {
+          const checkOTP = setInterval(() => {
+            const code = getOtpCode(); // Use getter function to retrieve OTP
+            if (code) {
+              clearInterval(checkOTP);
+              resolve(code);
+            }
+          }, 1000); // Check every second for the OTP
+        });
       },
-      onError: (err) => console.error(err),
+      onError: (err) => console.error('Client start error:', err),
     });
 
     user.session = client.session.save();
     await user.save();
 
-    client.addEventHandler(async (event) => {
-      if (event.message) {
-        const message = event.message.message;
-        const sender = await event.message.getSender();
-        const senderId = sender.id;
-        console.log(`New message from ${senderId}: ${message}`);
-        forwardMessage(senderId, message);
-      }
-    }, {});
+    console.log(`Adding event handler for user ${user.email}`);
+
+    client.addEventHandler(
+      handler,
+      new NewMessage({})
+    );
 
     clients[user.email] = client;
   } catch (error) {
@@ -71,33 +81,21 @@ const startClientRegister = async (user) => {
   try {
     await client.start({
       phoneNumber: async () => user.phoneNumber,
-      password: "",
-      phoneCode: async () => {
-        return new Promise((resolve) => {
-          const checkOTP = setInterval(() => {
-            const code = getOtpCode(); // Use getter function to retrieve OTP
-            if (code) {
-              clearInterval(checkOTP);
-              resolve(code);
-            }
-          }, 1000); // Check every second for the OTP
-        });
-      },
-      onError: (err) => console.error(err),
+      password: async () => "",
+      phoneCode: async () =>
+        await input.text("Please enter the code you received: "),
+      onError: (err) => console.error('Client start error:', err),
     });
 
     user.session = client.session.save();
     await user.save();
 
-    client.addEventHandler(async (event) => {
-      if (event.message) {
-        const message = event.message.message;
-        const sender = await event.message.getSender();
-        const senderId = sender.id;
-        console.log(`New message from ${senderId}: ${message}`);
-        forwardMessage(senderId, message);
-      }
-    }, {});
+    console.log(`Adding event handler for user ${user.email}`);
+
+    client.addEventHandler(
+      handler,
+      new NewMessage({})
+    );
 
     clients[user.email] = client;
   } catch (error) {
@@ -106,8 +104,7 @@ const startClientRegister = async (user) => {
 };
 
 const forwardMessage = (senderId, message) => {
-  axios
-    .post("https://another-server.com/forward", { senderId, message })
+  axios.post("https://another-server.com/forward", { senderId, message })
     .then((response) => {
       console.log("Message forwarded successfully");
     })
@@ -123,11 +120,6 @@ const startAllClients = async () => {
   }
 };
 
-// module.exports = {
-//   startClient,
-//   startAllClients,
-//   startClientRegister
-// };
 module.exports = {
   startClientRegister,
   startClient,
