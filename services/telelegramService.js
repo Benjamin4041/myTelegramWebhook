@@ -28,7 +28,7 @@ async function handler(event) {
       // forwardMessage(senderId, message);
     }
   } catch (err) {
-    console.error('Error handling event:', err);
+    console.error("Error handling event:", err);
   }
 }
 
@@ -41,10 +41,10 @@ const startClient = async (user) => {
   try {
     await client.start({
       phoneNumber: async () => user.phoneNumber,
-      password: async () => user.password || "", // Handle if password is required
-phoneCode: async () =>
-await input.text("Please enter the code you received: "),
-      onError: (err) => console.error('Client start error:', err),
+      password: async () => user.password || "",
+      phoneCode: async () =>
+        await input.text("Please enter the code you received: "),
+      onError: (err) => console.error("Client start error:", err),
     });
 
     user.session = client.session.save();
@@ -52,9 +52,20 @@ await input.text("Please enter the code you received: "),
 
     console.log(`Adding event handler for user ${user.email}`);
 
+    let myChoice = user.signalGivers;
+    console.log("Trimmed Signal Givers:", myChoice); 
+
+
     client.addEventHandler(
-      handler,
-      new NewMessage({})
+      (event) => {
+        if (event.message) {
+          console.log("Event received from:", event.message.peerId.userId, "Message:", event.message.message);
+        }
+      },
+      new NewMessage({
+        incoming: true,
+        fromUsers: myChoice,
+      })
     );
 
     clients[user.email] = client;
@@ -73,18 +84,18 @@ const startClientRegister = async (user) => {
     await client.start({
       phoneNumber: async () => user.phoneNumber,
       password: async () => "",
-        phoneCode: async () => {
-          return new Promise((resolve) => {
-            const checkOTP = setInterval(() => {
-              const code = getOtpCode(); // Use getter function to retrieve OTP
-              if (code) {
-                clearInterval(checkOTP);
-                resolve(code);
-              }
-            }, 1000); // Check every second for the OTP
-          });
-        },
-      onError: (err) => console.error('Client start error:', err),
+      phoneCode: async () => {
+        return new Promise((resolve) => {
+          const checkOTP = setInterval(() => {
+            const code = getOtpCode(); // Use getter function to retrieve OTP
+            if (code) {
+              clearInterval(checkOTP);
+              resolve(code);
+            }
+          }, 1000); // Check every second for the OTP
+        });
+      },
+      onError: (err) => console.error("Client start error:", err),
     });
 
     user.session = client.session.save();
@@ -92,10 +103,7 @@ const startClientRegister = async (user) => {
 
     console.log(`Adding event handler for user ${user.email}`);
 
-    client.addEventHandler(
-      handler,
-      new NewMessage({})
-    );
+    client.addEventHandler(handler, new NewMessage({}));
 
     clients[user.email] = client;
   } catch (error) {
@@ -104,7 +112,8 @@ const startClientRegister = async (user) => {
 };
 
 const forwardMessage = (senderId, message) => {
-  axios.post("https://another-server.com/forward", { senderId, message })
+  axios
+    .post("https://another-server.com/forward", { senderId, message })
     .then((response) => {
       console.log("Message forwarded successfully");
     })
