@@ -52,19 +52,25 @@ const startClient = async (user) => {
 
     console.log(`Adding event handler for user ${user.email}`);
 
-    let myChoice = user.signalGivers;
-    console.log("Trimmed Signal Givers:", myChoice); 
-
+    let myChoice = user.signalGivers.lenght === 0 ? null : user.signalGivers;
+    let fromGroups = user.signalGroups.lenght === 0 ? null : user.signalGroups;
+    console.log("Trimmed Signal Givers:", myChoice);
 
     client.addEventHandler(
       (event) => {
         if (event.message) {
-          console.log("Event received from:", event.message.peerId.userId, "Message:", event.message.message);
+          console.log(
+            "Event received from:",
+            event.message.peerId.userId,
+            "Message:",
+            event.message.message
+          );
         }
       },
       new NewMessage({
         incoming: true,
         fromUsers: myChoice,
+        chats: fromGroups,
       })
     );
 
