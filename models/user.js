@@ -115,6 +115,10 @@ const userSchema = new Schema({
       expires: new Date(Date.now() + 0 * 24 * 60 * 60 * 1000),
     }),
   },
+  exemptionSymbols: {
+    type: Array,
+    required: false,
+  },
   roles: {
     type: String,
     required: true,

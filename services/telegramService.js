@@ -8,6 +8,12 @@ require("dotenv").config();
 
 let otpCode = null; // Store OTP code in a module-level variable
 
+let hostname = "http://localhost:3000/";
+
+let OrderList = [];
+
+let count = 0;
+
 /**
  * The setOtpCode function in JavaScript sets the OTP code to the provided value.
  * @param code - The `code` parameter in the `setOtpCode` function is the value that will be assigned
@@ -37,11 +43,14 @@ const clients = {}; // Store clients by email
  * types of trading orders and actions based on the input event. The function handles scenarios for
  * creating new trades, modifying existing trades, and closing trades.
  */
-let handler = async (event) => {
+let handler = async (event, userDetails) => {
   let replyStatus = await event.message;
-
+  let senderId = userDetails._id.toString();
+  let user = userDetails;
+  console.log(userDetails._id);
   if (replyStatus.replyTo === null) {
     let str = event.message.message;
+
     if (str.includes("MARKET ORDER") || str.includes("LIMIT ORDER")) {
       const tpMatches = str.match(/TP.*?(\d+\.\d+)/gi);
 
@@ -74,23 +83,23 @@ let handler = async (event) => {
                 .splice(0, bracketPosition)
                 .join("")
                 .trim(),
-              leverage: 10,
+              leverage: 0,
               amount: 1,
             };
             console.log(object);
-            return main(object);
+            return main(object, senderId);
           } else if (/tp/i.test(str) && !/sl/i.test(str)) {
             if (tpMatches.length > 1) {
-              let slPosition;
+              // let slPosition;
               lines.forEach((item) => {
                 if (/SL.*?(\d+\.\d+)/gi.test(item)) {
                   slPosition = lines.indexOf(item);
                 }
               });
-              let bracketPosition = lines[slPosition]
-                .split(":")[1]
-                .split("")
-                .indexOf("(");
+              // let bracketPosition = lines[slPosition]
+              //   .split(":")[1]
+              //   .split("")
+              //   .indexOf("(");
               const object = {
                 orderType:
                   lines[0].split(" ")[0][0].toLowerCase() +
@@ -105,19 +114,15 @@ let handler = async (event) => {
 
                 takeProfitPrice: tp,
 
-                stopLossPrice: lines[sl]
-                  .split(":")[1]
-                  .split("")
-                  .splice(0, bracketPosition)
-                  .join("")
-                  .trim(),
-                leverage: 10,
+                stopLossPrice: null,
+                leverage: 0,
                 amount: 1,
               };
 
               OrderList.push(object);
-              console.log(OrderList);
-              return main(OrderList);
+
+              // console.log(OrderList);
+              return main(OrderList, senderId);
             }
 
             let slPosition;
@@ -126,10 +131,10 @@ let handler = async (event) => {
                 slPosition = lines.indexOf(item);
               }
             });
-            let bracketPosition = lines[slPosition]
-              .split(":")[1]
-              .split("")
-              .indexOf("(");
+            // let bracketPosition = lines[slPosition]
+            //   .split(":")[1]
+            //   .split("")
+            //   .indexOf("(");
             const object = {
               orderType:
                 lines[0].split(" ")[0][0].toLowerCase() +
@@ -141,16 +146,21 @@ let handler = async (event) => {
 
               takeProfitPrice: tp,
               stopLossPrice: undefined,
-              leverage: 10,
+              leverage: 0,
               amount: 1,
             };
-            console.log(object);
-            return main(object);
+            // console.log(object);
+            return main(object, senderId);
           } else {
+            // this is when sl and tp is given
             function processOrders(lines, tpMatches, entryVal, tp) {
+              // Initialize the order list
+
+              // Process only if there are multiple take profit matches
               if (tpMatches.length > 1) {
                 let slPosition;
 
+                // Find the stop-loss position
                 lines.forEach((item, index) => {
                   if (/SL.*?(\d+\.\d+)/gi.test(item)) {
                     slPosition = index;
@@ -163,6 +173,7 @@ let handler = async (event) => {
                     .split("")
                     .indexOf("(");
 
+                  // Create the order object
                   const orderObject = {
                     orderType:
                       lines[0].split(" ")[0][0].toLowerCase() +
@@ -180,14 +191,23 @@ let handler = async (event) => {
                       .splice(0, bracketPosition)
                       .join("")
                       .trim(),
-                    leverage: 10,
+                    leverage: 0,
                     amount: 1,
                   };
 
+                  // Add the order object to the final list
                   OrderList.push(orderObject);
                 }
-                tpNum = tpMatches;
-                main(OrderList);
+                tpNum = tpMatches.length;
+                console.log("here " + OrderList.length+" "+tpNum);
+                if(tpNum==OrderList.length){
+                  
+                  main(OrderList,senderId);
+                  OrderList=[]
+                  tpMatches=[]
+                }
+                // Pass the list to the main function
+                
               } else {
                 let slPosition;
                 lines.forEach((item) => {
@@ -208,9 +228,9 @@ let handler = async (event) => {
                     lines[0].split(" ")[0].substr(1).toLowerCase(),
                   side: lines[1].includes("SELL") ? "sell" : "buy",
                   symbol: lines[2].replace("$", ""),
-
+                  //   entry: lines[3].split(":")[1].trim().slice(0, 6),
                   price: entryVal,
-
+                  //   tp1: lines[4].split(":")[1].trim().slice(0, 6),
                   takeProfitPrice: tp,
                   stopLossPrice: lines[sl]
                     .split(":")[1]
@@ -218,11 +238,11 @@ let handler = async (event) => {
                     .splice(0, bracketPosition)
                     .join("")
                     .trim(),
-                  leverage: 10,
+                  leverage:0,
                   amount: 1,
                 };
                 console.log(object);
-                return main(object);
+                return main(object,senderId);
               }
             }
             processOrders(lines, tpMatches, entryVal, tp);
@@ -237,11 +257,11 @@ let handler = async (event) => {
 
             price: entryVal,
 
-            leverage: 10,
+            leverage: 0,
             amount: 1,
           };
           console.log(object);
-          return main(object);
+          return main(object, senderId);
         }
       }
 
@@ -472,12 +492,15 @@ let handler = async (event) => {
     let str = mess.message;
 
     console.log(str);
-    const tpMatches = str.match(/TP.*?(\d+\.\d+)/gi).length;
+    const tpMatches = str.match(/TP.*?(\d+\.\d+)/gi)
+      ? str.match(/TP.*?(\d+\.\d+)/gi).length
+      : 0;
+
     console.log(tpMatches);
 
     if (
       /close/i.test(replyStatus.message) ||
-      /cancle/i.test(replyStatus.message)
+      /cancel/i.test(replyStatus.message)
     ) {
       if (tpMatches > 1) {
         let results = [];
@@ -498,12 +521,33 @@ let handler = async (event) => {
 
             takeProfitPrice: undefined,
             stopLossPrice: undefined,
-            leverage: 10,
+            leverage: 0,
             amount: 1,
           };
           console.log(object);
           // change this to  closeMutipleTrade endpoint
-          results.push(closeTrade(object));
+          if (user.subscriptionDetails.isSubscribe) {
+            //real
+            axios
+              .post(`${hostname}api/real/closetrade`, { senderId, object })
+              .then((response) => {
+                console.log("Message forwarded successfully");
+              })
+              .catch((error) => {
+                console.error("Error forwarding message:", error);
+              });
+          } else {
+            //demo
+            axios
+              .post(`${hostname}api/demo/closetrade`, { senderId, object })
+              .then((response) => {
+                console.log("Message forwarded successfully");
+              })
+              .catch((error) => {
+                console.error("Error forwarding message:", error);
+              });
+          }
+          // results.push(closeTrade(object));
         }
         return console.log("closed: " + results);
       } else {
@@ -522,46 +566,88 @@ let handler = async (event) => {
 
           takeProfitPrice: undefined,
           stopLossPrice: undefined,
-          leverage: 10,
+          leverage: 0,
           amount: 1,
         };
         console.log(object);
-         // change this to closeTrade endpoint
-        return closeTrade(object);
+        // change this to closeTrade endpoint
+        // return closeTrade(object);
+        if (user.subscriptionDetails.isSubscribe) {
+          //real
+          axios
+            .post(`${hostname}api/real/closetrade`, { senderId, object })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        } else {
+          //demo
+          axios
+            .post(`${hostname}api/demo/closetrade`, { senderId, object })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        }
       }
     } else if (/tp|sl/i.test(replyStatus.message)) {
       const lines = mess.message
         .split("\n")
         .filter((line) => line.trim() !== "");
 
-        if(tpMatches > 1){
-          let results = [];
-          for (let index = 0; index < tpMatches; index++) {
-            console.log("am here in loop");
-  
-            const lines = mess.message
-              .split("\n")
-              .filter((line) => line.trim() !== "");
-            const object = {
-              orderType:
-                lines[0].split(" ")[0][0].toLowerCase() +
-                lines[0].split(" ")[0].substr(1).toLowerCase(),
-              side: lines[1].includes("SELL") ? "sell" : "buy",
-              symbol: lines[2].replace("$", ""),
-  
-              price: undefined,
-  
-              takeProfitPrice: undefined,
-              stopLossPrice: undefined,
-              leverage: 10,
-              amount: 1,
-            };
-            console.log(object);
-            // change this to  closeMutipleTrade endpoint
-            results.push(closeTrade(object));
+      if (tpMatches > 1) {
+        let results = [];
+        for (let index = 0; index < tpMatches; index++) {
+          console.log("am here in loop");
+
+          const lines = mess.message
+            .split("\n")
+            .filter((line) => line.trim() !== "");
+          const object = {
+            orderType:
+              lines[0].split(" ")[0][0].toLowerCase() +
+              lines[0].split(" ")[0].substr(1).toLowerCase(),
+            side: lines[1].includes("SELL") ? "sell" : "buy",
+            symbol: lines[2].replace("$", ""),
+
+            price: undefined,
+
+            takeProfitPrice: undefined,
+            stopLossPrice: undefined,
+            leverage: 0,
+            amount: 1,
+          };
+          console.log(object);
+          // change this to  closeMutipleTrade endpoint
+          // results.push(closeTrade(object));
+          if (user.subscriptionDetails.isSubscribe) {
+            //real
+            axios
+              .post(`${hostname}api/real/closetrade`, { senderId, object })
+              .then((response) => {
+                console.log("Message forwarded successfully");
+              })
+              .catch((error) => {
+                console.error("Error forwarding message:", error);
+              });
+          } else {
+            //demo
+            axios
+              .post(`${hostname}api/demo/closetrade`, { senderId, object })
+              .then((response) => {
+                console.log("Message forwarded successfully");
+              })
+              .catch((error) => {
+                console.error("Error forwarding message:", error);
+              });
           }
-          return console.log("closed: " + results);
         }
+        return console.log("closed: " + results);
+      }
 
       if (
         /tp|sl/i.test(replyStatus.message) &&
@@ -588,11 +674,32 @@ let handler = async (event) => {
 
           takeProfitPrice: tp,
           stopLossPrice: sl,
-          leverage: 10,
+          leverage: 0,
           amount: 1,
         };
         // change this to modifyTrade endpoint
-        modifyTrade(object);
+        // modifyTrade(object);
+        if (user.subscriptionDetails.isSubscribe) {
+          //real
+          axios
+            .post(`${hostname}api/real/modifytrade`, { senderId, object })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        } else {
+          //demo
+          axios
+            .post(`${hostname}api/demo/modifytrade`, { senderId, object })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        }
       } else if (
         /sl/i.test(replyStatus.message) &&
         !/tp/i.test(replyStatus.message)
@@ -615,11 +722,32 @@ let handler = async (event) => {
 
           takeProfitPrice: tp,
           stopLossPrice: sl,
-          leverage: 10,
+          leverage: 0,
           amount: 1,
         };
         // change this to modifyTrade endpoint
-        modifyTrade(object);
+        // modifyTrade(object);
+        if (user.subscriptionDetails.isSubscribe) {
+          //real
+          axios
+            .post(`${hostname}api/real/modifytrade`, { senderId, object })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        } else {
+          //demo
+          axios
+            .post(`${hostname}api/demo/modifytrade`, { senderId, object })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        }
       } else {
         let Replymess = replyStatus.message.trim().split("\n");
         let tp = Replymess.filter((item) => /tp/i.test(item))[0]
@@ -638,11 +766,32 @@ let handler = async (event) => {
 
           takeProfitPrice: tp,
           stopLossPrice: sl,
-          leverage: 10,
+          leverage: 0,
           amount: 1,
         };
         // change this to modifyTrade endpoint
-        modifyTrade(object);
+        // modifyTrade(object);
+        if (user.subscriptionDetails.isSubscribe) {
+          //real
+          axios
+            .post(`${hostname}api/real/modifytrade`, { senderId, object })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        } else {
+          //demo
+          axios
+            .post(`${hostname}api/demo/modifytrade`, { senderId, object })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        }
       }
     } else {
       return null;
@@ -658,17 +807,20 @@ let handler = async (event) => {
  * session, API ID, API hash, phone number, email, signal givers usernames, and signal groups.
  */
 const startClient = async (user) => {
-
   const stringSession = new StringSession(user.telegramSession || "");
-  const client = new TelegramClient(stringSession,user.telegramApiId * 1,
-    user.telegramApiHash, {
-    connectionRetries: 5,
-  });
+  const client = new TelegramClient(
+    stringSession,
+    user.telegramApiId * 1,
+    user.telegramApiHash,
+    {
+      connectionRetries: 5,
+    }
+  );
 
   try {
     await client.start({
       phoneNumber: async () => user.phoneNumber,
-      password: async () =>"",
+      password: async () => "",
       phoneCode: async () =>
         await input.text("Please enter the code you received: "),
       onError: (err) => console.error("Client start error:", err),
@@ -679,20 +831,16 @@ const startClient = async (user) => {
 
     console.log(`Adding event handler for user ${user.email}`);
 
-    let myChoice = user.signalGiversUsernames.lenght === 0 ? null : user.signalGiversUsernames;
+    let myChoice =
+      user.signalGiversUsernames.lenght === 0
+        ? null
+        : user.signalGiversUsernames;
     let fromGroups = user.signalGroup.lenght === 0 ? null : user.signalGroups;
     console.log("Trimmed Signal Givers:", myChoice);
 
     client.addEventHandler(
       (event) => {
-        if (event.message) {
-          console.log(
-            "Event received from:",
-            event.message.peerId.userId,
-            "Message:",
-            event.message.message
-          );
-        }
+        handler(event, user);
       },
       new NewMessage({
         incoming: true,
@@ -714,45 +862,68 @@ const startClient = async (user) => {
  * statements and function calls based on the `orderInfo` object properties and conditions. The
  * function performs different actions based on the conditions and logs messages to the console.
  */
-const forwardMessage = () => {
-  // axios
-  //   .post("https://another-server.com/forward", { senderId, message })
-  //   .then((response) => {
-  //     console.log("Message forwarded successfully");
-  //   })
-  //   .catch((error) => {
-  //     console.error("Error forwarding message:", error);
-  //   });
-
-  if (exemptionSymbols.includes(orderInfo.symbol)) {
-    return console.log("You can't trade this symbol");
-  } else {
-    if (!Array.isArray(orderInfo)) {
-      if (
-        orderInfo.takeProfitPrice == undefined &&
-        orderInfo.stopLossPrice == undefined
-      ) {
-        if (traling.on) {
-          console.log("traling sl");
-          // change this to trailSl endpoint
-          trailSl(orderInfo);
-        } else {
-          console.log("no traling");
-          // change this to openTrade endpoint
-          openTrade(orderInfo);
-        }
-      } else {
-        console.log("openTradeWithTpSl");
-        // change this to openTradeWithTpSl endpoint
-        openTradeWithTpSl(orderInfo);
-      }
-    } else {
-      console.log("openMultipleOrdersWithTpSl");
-      // change this to openMultipleOrdersWithTpSl endpoint
-      openMultipleOrdersWithTpSl(orderInfo);
-    }
-  }
-};
+// const forwardMessage = () => {
+//   if (exemptionSymbols.includes(orderInfo.symbol)) {
+//     return console.log("You can't trade this symbol");
+//   } else {
+//     if (!Array.isArray(orderInfo)) {
+//       if (
+//         orderInfo.takeProfitPrice == undefined &&
+//         orderInfo.stopLossPrice == undefined
+//       ) {
+//         if (traling.on) {
+//           console.log("traling sl");
+//           // change this to trailSl endpoint
+//           // trailSl(orderInfo);
+//           axios
+//             .post(`${hostname}`, { senderId, message })
+//             .then((response) => {
+//               console.log("Message forwarded successfully");
+//             })
+//             .catch((error) => {
+//               console.error("Error forwarding message:", error);
+//             });
+//         } else {
+//           console.log("no traling");
+//           // change this to openTrade endpoint
+//           // openTrade(orderInfo);
+//           axios
+//             .post(`${hostname}`, { senderId, message })
+//             .then((response) => {
+//               console.log("Message forwarded successfully");
+//             })
+//             .catch((error) => {
+//               console.error("Error forwarding message:", error);
+//             });
+//         }
+//       } else {
+//         console.log("openTradeWithTpSl");
+//         // change this to openTradeWithTpSl endpoint
+//         // openTradeWithTpSl(orderInfo);
+//         axios
+//           .post(`${hostname}`, { senderId, message })
+//           .then((response) => {
+//             console.log("Message forwarded successfully");
+//           })
+//           .catch((error) => {
+//             console.error("Error forwarding message:", error);
+//           });
+//       }
+//     } else {
+//       console.log("openMultipleOrdersWithTpSl");
+//       // change this to openMultipleOrdersWithTpSl endpoint
+//       // openMultipleOrdersWithTpSl(orderInfo);
+//       axios
+//         .post(`${hostname}`, { senderId, message })
+//         .then((response) => {
+//           console.log("Message forwarded successfully");
+//         })
+//         .catch((error) => {
+//           console.error("Error forwarding message:", error);
+//         });
+//     }
+//   }
+// };
 
 /**
  * The main function asynchronously retrieves a user by their ID using the User model.
@@ -763,8 +934,131 @@ const forwardMessage = () => {
  * user in a database. In this case, it is being used to find a user by their ID in the `User`
  * collection.
  */
-async function main(orderInfo, id) {
-  const user = await User.findById(id);
+async function main(orderInfo, senderId) {
+  let user = await User.findById(senderId);
+  if (user.exemptionSymbols.includes(orderInfo.symbol)) {
+    return console.log("You can't trade this symbol");
+  }
+  if (!Array.isArray(orderInfo)) {
+    if (
+      orderInfo.takeProfitPrice == undefined &&
+      orderInfo.stopLossPrice == undefined
+    ) {
+      //   let traling = { on: false, tralingPercentage: 5 };
+      // orderInfo.traling = traling.tralingPercentage;
+      if (user.stoplossTraling) {
+        console.log("traling sl");
+        // trailSl(orderInfo);
+        if (user.subscriptionDetails.isSubscribe) {
+          //real
+          axios
+            .post(`${hostname}api/real/trailsl`, { senderId, orderInfo })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        } else {
+          //demo
+          axios
+            .post(`${hostname}api/demo/trailsl`, { senderId, orderInfo })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        }
+      } else {
+        console.log("no traling");
+        // openTrade(orderInfo);
+        if (user.subscriptionDetails.isSubscribe) {
+          //real
+          axios
+            .post(`${hostname}api/real/opentrade`, { senderId, orderInfo })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        } else {
+          //demo
+          axios
+            .post(`${hostname}api/demo/opentrade`, { senderId, orderInfo })
+            .then((response) => {
+              console.log("Message forwarded successfully");
+            })
+            .catch((error) => {
+              console.error("Error forwarding message:", error);
+            });
+        }
+      }
+    } else {
+      console.log("openTradeWithTpSl");
+      // openTradeWithTpSl(orderInfo);
+      if (user.subscriptionDetails.isSubscribe) {
+        //real
+        axios
+          .post(`${hostname}api/real/opentradewithtpsl`, {
+            senderId,
+            orderInfo,
+          })
+          .then((response) => {
+            console.log("Message forwarded successfully");
+          })
+          .catch((error) => {
+            console.error("Error forwarding message:", error);
+          });
+      } else {
+        //demo
+        axios
+          .post(`${hostname}api/demo/opentradewithtpsl`, {
+            senderId,
+            orderInfo,
+          })
+          .then((response) => {
+            console.log("Message forwarded successfully");
+          })
+          .catch((error) => {
+            console.error("Error forwarding message:", error);
+          });
+      }
+    }
+  } else {
+    console.log("openMultipleOrdersWithTpSl");
+    // openMultipleOrdersWithTpSl(orderInfo);
+    // console.log(orderInfo)
+    if (user.subscriptionDetails.isSubscribe) {
+      //real
+      axios
+        .post(`${hostname}api/real/openmultipleorderswithtpsl`, {
+          senderId,
+          orderInfo,
+        })
+        .then((response) => {
+          console.log("Message forwarded successfully");
+        })
+        .catch((error) => {
+          console.error("Error forwarding message:", error);
+        });
+    } else {
+      console.log(orderInfo);
+      //demo
+      axios
+        .post(`${hostname}api/demo/openmultipleorderswithtpsl`, {
+          senderId,
+          orderInfo,
+        })
+        .then((response) => {
+          console.log("Message forwarded successfully");
+        })
+        .catch((error) => {
+          console.error("Error forwarding message:", error);
+        });
+    }
+  }
 }
 
 /**
@@ -785,4 +1079,15 @@ module.exports = {
   getOtpCode,
 };
 
+/* 
+commit message
+here are the changes i just made
+1) i removed the startClientRegister function because i want this server to only listen for incoming message from the users 
+2) i change the database to the tradecopyier database which means the url was changed
+3)some of the variables where changed to fit the tradecopyier database
+4)i change the schema so that it would fit the tradecopier database 
 
+the tradecpier database was the first database i created for this project the when, 
+i wanted to test som functionalitys i created a new database that was calledn telegramtest
+
+**/
